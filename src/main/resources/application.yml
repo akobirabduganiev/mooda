@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: mooda
+  main:
+    web-application-type: reactive
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/mooda_db
+    username: postgres
+    password: mysecurepassword
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      username: default
+      password: mysecurepassword
+
+mooda:
+  security:
+    jwt:
+      secret: dev-secret-change
+      expires-min: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+app:
+  security:
+    cors:
+      allowed-origins: http://localhost:3000,http://localhost:5173
