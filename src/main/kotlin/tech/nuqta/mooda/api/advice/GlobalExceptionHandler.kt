@@ -20,7 +20,8 @@ class GlobalExceptionHandler {
         val pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.message ?: "Invalid mood type")
         pd.type = URI.create("https://api.mooda.tech/problems/invalid-mood-type")
         pd.title = "Invalid mood type"
-        pd.setProperty("code", e.code)
+        pd.setProperty("code", "invalid_mood_type")
+        pd.setProperty("invalidValue", e.code)
         return Mono.just(pd)
     }
 
@@ -53,6 +54,7 @@ class GlobalExceptionHandler {
     fun handleResponseStatus(e: ResponseStatusException): Mono<ProblemDetail> {
         val pd = ProblemDetail.forStatusAndDetail(e.statusCode, e.reason ?: e.message ?: "Error")
         pd.title = e.statusCode.toString()
+        e.reason?.let { pd.setProperty("code", it) }
         return Mono.just(pd)
     }
 

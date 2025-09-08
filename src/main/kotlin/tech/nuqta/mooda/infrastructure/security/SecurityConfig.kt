@@ -53,7 +53,7 @@ class SecurityConfig(
                     .pathMatchers("/api/v1/stats/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
-                    .pathMatchers("/api/v1/me/**", "/api/v1/report", "/api/v1/mood").authenticated()
+                    .pathMatchers("/api/v1/me/**", "/api/v1/report").authenticated()
                     .anyExchange().permitAll()
             }
             .addFilterAt(authFilter, SecurityWebFiltersOrder.AUTHENTICATION)

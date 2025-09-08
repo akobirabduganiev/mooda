@@ -2,11 +2,20 @@ package tech.nuqta.mooda.api
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.reactivestreams.Publisher
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.WebTestClient
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
+import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
+import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
@@ -94,6 +103,37 @@ class ApiTests {
             .expectStatus().isUnauthorized
             .expectBody()
             .jsonPath("$.code").isEqualTo("invalid_google_token")
+    }
+
+    @Test
+    fun `me moods requires auth`() {
+        client.get()
+            .uri("/api/v1/me/moods")
+            .exchange()
+            .expectStatus().isUnauthorized
+    }
+
+    @Test
+    fun `me moods with auth returns empty items`() {
+        val tokenMap = client.post()
+            .uri("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("idToken" to "TEST"))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(Map::class.java)
+            .returnResult()
+            .responseBody as Map<*, *>
+        val token = tokenMap["accessToken"] as String
+
+        client.get()
+            .uri("/api/v1/me/moods?days=0")
+            .header("Authorization", "Bearer $token")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.items").isArray
+            .jsonPath("$.items.length()").isEqualTo(0)
     }
 
 }
