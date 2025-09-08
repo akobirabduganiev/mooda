@@ -15,7 +15,7 @@ import tech.nuqta.mooda.infrastructure.security.JwtSupport
 class AuthController(
     private val googleVerifier: GoogleIdTokenVerifier,
     private val jwtSupport: JwtSupport,
-    @Value("\${app.google.client-id:}") private val googleClientId: String
+    @param:Value("\${app.google.client-id:}") private val googleClientId: String
 ) {
     data class GoogleAuthRequest(val idToken: String)
     data class TokenResponse(val accessToken: String, val tokenType: String = "Bearer", val expiresIn: Long)
