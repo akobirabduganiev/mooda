@@ -55,4 +55,45 @@ class ApiTests {
             .expectBody()
             .jsonPath("$.userId").value<String> { v -> assertThat(v).startsWith("u-test-subject") }
     }
+
+    @Test
+    fun `moods types returns RU localized labels`() {
+        val body = client.get()
+            .uri("/api/v1/moods/types?locale=ru")
+            .accept(MediaType.APPLICATION_JSON)
+            .exchange()
+            .expectStatus().isOk
+            .expectBodyList(Map::class.java)
+            .returnResult()
+            .responseBody!!
+
+        val happy = body.firstOrNull { it["code"] == "HAPPY" }
+        assertThat(happy).isNotNull
+        assertThat(happy!!["label"]).isEqualTo("Счастливый")
+    }
+
+    @Test
+    fun `auth google audience mismatch returns problem code`() {
+        client.post()
+            .uri("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("idToken" to "TEST_AUD_MISMATCH"))
+            .exchange()
+            .expectStatus().isUnauthorized
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("oidc_audience_mismatch")
+    }
+
+    @Test
+    fun `auth google invalid token returns problem code`() {
+        client.post()
+            .uri("/api/v1/auth/google")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("idToken" to "BAD"))
+            .exchange()
+            .expectStatus().isUnauthorized
+            .expectBody()
+            .jsonPath("$.code").isEqualTo("invalid_google_token")
+    }
+
 }

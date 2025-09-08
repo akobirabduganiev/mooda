@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.domain.model.InvalidMoodType
+import tech.nuqta.mooda.infrastructure.security.InvalidGoogleTokenException
+import tech.nuqta.mooda.infrastructure.security.OidcAudienceMismatchException
 import java.net.URI
 
 @ControllerAdvice
@@ -19,6 +21,24 @@ class GlobalExceptionHandler {
         pd.type = URI.create("https://api.mooda.tech/problems/invalid-mood-type")
         pd.title = "Invalid mood type"
         pd.setProperty("code", e.code)
+        return Mono.just(pd)
+    }
+
+    @ExceptionHandler(InvalidGoogleTokenException::class)
+    fun handleInvalidGoogle(e: InvalidGoogleTokenException): Mono<ProblemDetail> {
+        val pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.message ?: "Invalid Google token")
+        pd.type = URI.create("https://api.mooda.tech/problems/invalid-google-token")
+        pd.title = "Invalid Google token"
+        pd.setProperty("code", "invalid_google_token")
+        return Mono.just(pd)
+    }
+
+    @ExceptionHandler(OidcAudienceMismatchException::class)
+    fun handleAudienceMismatch(e: OidcAudienceMismatchException): Mono<ProblemDetail> {
+        val pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.message ?: "OIDC audience mismatch")
+        pd.type = URI.create("https://api.mooda.tech/problems/oidc-audience-mismatch")
+        pd.title = "OIDC audience mismatch"
+        pd.setProperty("code", "oidc_audience_mismatch")
         return Mono.just(pd)
     }
 
