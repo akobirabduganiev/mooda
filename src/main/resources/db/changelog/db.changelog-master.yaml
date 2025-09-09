@@ -193,7 +193,52 @@ databaseChangeLog:
               - column:
                   name: mood_id
   - changeSet:
-      id: 0005-create-user-identities
+      id: 0005-alter-users-add-profile
+      author: junie
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: first_name
+                  type: varchar(128)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: last_name
+                  type: varchar(128)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: country
+                  type: varchar(64)
+                  constraints:
+                    nullable: true
+  - changeSet:
+      id: 0006-alter-moods-country-comment
+      author: junie
+      changes:
+        - addColumn:
+            tableName: moods
+            columns:
+              - column:
+                  name: comment
+                  type: text
+                  constraints:
+                    nullable: true
+        - sql:
+            comment: backfill null country values to UNKNOWN
+            sql: "UPDATE moods SET country = 'UNKNOWN' WHERE country IS NULL;"
+        - addNotNullConstraint:
+            tableName: moods
+            columnName: country
+            columnDataType: varchar(64)
+            indexName: idx_reports_mood_id
+            columns:
+              - column:
+                  name: mood_id
+  - changeSet:
+      id: 0007-create-user-identities
       author: junie
       changes:
         - createTable:

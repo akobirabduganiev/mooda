@@ -16,9 +16,10 @@ data class MoodEntity(
     val deviceId: String,
     @Column("mood_type")
     val moodType: String,
-    val country: String?,
+    val country: String,
     val locale: String?,
     val day: LocalDate,
+    val comment: String? = null,
     @Column("created_at")
     val createdAt: Instant = Instant.now()
 )

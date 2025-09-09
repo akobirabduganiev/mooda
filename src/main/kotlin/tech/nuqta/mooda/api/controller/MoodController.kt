@@ -72,7 +72,7 @@ class MoodController(
                         userId = userId,
                         deviceId = deviceId ?: "unknown",
                         moodType = moodType.name,
-                        country = null,
+                        country = "",
                         locale = locale,
                         day = day
                     )
