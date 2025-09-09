@@ -29,7 +29,9 @@ mooda:
   security:
     jwt:
       secret: dev-secret-change
-      expires-min: 60
+      access-min: 15
+      refresh-days: 180
+      verify-hours: 24
 
 management:
   endpoints:
@@ -50,9 +52,10 @@ springdoc:
 app:
   security:
     cors:
-      allowed-origins: http://localhost:3000,http://localhost:5173
-  google:
-    client-id: demo-client-id
+      allowed-origins: "*"
+  auth:
+    verify-url-base: http://localhost:8010/api/v1/auth/verify
+    debug-expose-token: false
 
 server:
   port: 8010

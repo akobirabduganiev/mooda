@@ -82,7 +82,8 @@ class MoodService(
                         r2dbc.insert(entity).flatMap {
                             val guardTtl = Duration.ofHours(24)
                             val counterKeyType = "mooda:cnt:today:mood:${moodType.name}"
-                            val counterKeyTypeCountry = "mooda:cnt:today:mood:${moodType.name}:${cmd.country.uppercase()}"
+                            val counterKeyTypeCountry = "mooda:cnt:today:country:${cmd.country.uppercase()}:${moodType.name}"
+                            val countriesSetKey = "mooda:countries:today"
                             val lastKey = if (isUser) "mooda:last:user:$subject" else "mooda:last:dev:$subject"
                             val lastTtl = if (isUser) Duration.ofDays(30) else Duration.ofDays(7)
                             val lastJson = "{\"day\":\"$dayStr\",\"moodType\":\"${moodType.name}\"}"

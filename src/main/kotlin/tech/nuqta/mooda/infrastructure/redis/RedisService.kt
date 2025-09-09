@@ -6,10 +6,13 @@ import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import java.time.Duration
 
+import reactor.core.publisher.Flux
+
 interface RedisService {
     fun incrementWithTtlIfFirst(key: String, ttl: Duration): Mono<Long>
     fun get(key: String): Mono<String>
     fun set(key: String, value: String, ttl: Duration): Mono<Boolean>
+    fun scan(pattern: String): Flux<String>
 }
 
 @Component
@@ -32,5 +35,11 @@ class RedisServiceImpl(@Autowired(required = false) private val redis: ReactiveS
     override fun set(key: String, value: String, ttl: Duration): Mono<Boolean> {
         val r = redis ?: return Mono.just(true)
         return r.opsForValue().set(key, value, ttl)
+    }
+
+    override fun scan(pattern: String): Flux<String> {
+        val r = redis ?: return Flux.empty()
+        val options = org.springframework.data.redis.core.ScanOptions.scanOptions().match(pattern).count(1000L).build()
+        return r.scan(options)
     }
 }

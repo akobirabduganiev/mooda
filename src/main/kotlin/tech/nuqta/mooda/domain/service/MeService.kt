@@ -12,7 +12,7 @@ class MeService(
     data class MeResponse(
         val userId: String,
         val email: String? = null,
-        val providers: List<String> = listOf("GOOGLE")
+        val providers: List<String> = listOf("EMAIL")
     )
 
     data class MeMoodsItem(val day: String, val moodType: String)

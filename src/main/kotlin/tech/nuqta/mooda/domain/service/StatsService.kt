@@ -14,10 +14,17 @@ class StatsService(
     private val redis: RedisService,
     private val moodRepoProvider: ObjectProvider<MoodRepository>
 ) {
-    data class TotalItem(val moodType: String, val count: Long, val percent: Double)
-    data class TodayStats(val totals: List<TotalItem>, val top: List<String>)
+    data class TotalItem(val moodType: String, val count: Long, val percent: Double, val emoji: String)
+    data class LiveStatsDto(
+        val scope: String,
+        val country: String?,
+        val date: String,
+        val totals: List<TotalItem>,
+        val top: List<String>,
+        val totalCount: Long
+    )
 
-    fun today(country: String?, locale: String?): Mono<TodayStats> {
+    fun live(country: String?, locale: String?): Mono<LiveStatsDto> {
         val today = LocalDate.now(ZoneOffset.UTC)
         return fetchFromRedis(country).flatMap { redisTotals ->
             val sum = redisTotals.values.sum()
@@ -51,7 +58,7 @@ class StatsService(
             val key = if (country.isNullOrBlank())
                 "mooda:cnt:today:mood:${type.name}"
             else
-                "mooda:cnt:today:mood:${type.name}:${country.uppercase()}"
+                "mooda:cnt:today:country:${country.uppercase()}:${type.name}"
             redis.get(key).map { it.toLongOrNull() ?: 0L }.defaultIfEmpty(0L).map { type.name to it }
         }
         return Mono.zip(monos) { arr ->

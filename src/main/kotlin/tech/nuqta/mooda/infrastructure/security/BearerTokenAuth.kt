@@ -19,7 +19,8 @@ class JwtReactiveAuthenticationManager(private val jwtSupport: JwtSupport) : Rea
     override fun authenticate(authentication: Authentication): Mono<Authentication> {
         val token = authentication.credentials as? String ?: return Mono.empty()
         val payload = jwtSupport.verify(token) ?: return Mono.empty()
-        val userId = payload.userId
+        if (payload.type != "access") return Mono.empty()
+        val userId = payload.subject
         val auth = BearerTokenAuthentication(token, userId)
         auth.isAuthenticated = true
         return Mono.just(auth)

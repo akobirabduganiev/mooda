@@ -36,7 +36,7 @@ class GoogleIdTokenVerifier {
         jwtProcessor.jwsKeySelector = keySelector
     }
 
-    fun verify(idToken: String, expectedClientId: String? = null): GoogleVerificationResult {
+    fun verify(idToken: String, expectedClientIds: Collection<String>? = null): GoogleVerificationResult {
         // Test shortcuts for local/testing
         if (idToken == "TEST") {
             return GoogleVerificationResult(
@@ -56,12 +56,28 @@ class GoogleIdTokenVerifier {
                 throw InvalidGoogleTokenException("Invalid issuer: $issuer")
             }
             val audience = claims.audience ?: emptyList()
-            if (!expectedClientId.isNullOrBlank() && audience.none { it == expectedClientId }) {
-                throw OidcAudienceMismatchException()
+            if (!expectedClientIds.isNullOrEmpty()) {
+                val allowed = expectedClientIds.toSet()
+                if (audience.none { it in allowed }) {
+                    throw OidcAudienceMismatchException()
+                }
             }
             val exp = claims.expirationTime?.toInstant() ?: Instant.EPOCH
             val now = Instant.now().minus(60, ChronoUnit.SECONDS) // tolerate small skew
             if (exp.isBefore(now)) throw InvalidGoogleTokenException("Expired token")
+
+            // Enforce email verification if email present and claim exists
+            val emailVerified = try {
+                val v = claims.getClaim("email_verified")
+                when (v) {
+                    is Boolean -> v
+                    is String -> v.equals("true", ignoreCase = true)
+                    else -> null
+                }
+            } catch (ignored: Exception) { null }
+            if (emailVerified == false) {
+                throw InvalidGoogleTokenException("Unverified email")
+            }
 
             val sub = claims.subject
             val email = claims.getStringClaim("email")

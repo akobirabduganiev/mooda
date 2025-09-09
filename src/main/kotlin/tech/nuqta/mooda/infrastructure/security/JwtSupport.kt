@@ -16,29 +16,35 @@ import java.security.MessageDigest
 @Component
 class JwtSupport(
     @Value("\${mooda.security.jwt.secret:dev-secret-change}") private val secret: String,
-    @Value("\${mooda.security.jwt.expires-min:60}") private val expiresMin: Long
+    @Value("\${mooda.security.jwt.access-min:15}") private val accessMin: Long,
+    @Value("\${mooda.security.jwt.refresh-days:180}") private val refreshDays: Long,
+    @Value("\${mooda.security.jwt.verify-hours:24}") private val verifyHours: Long
 ) {
-    data class JwtPayload(val userId: String, val provider: String?, val expiresAt: Instant)
+    data class JwtPayload(val subject: String, val type: String, val expiresAt: Instant, val email: String?)
 
     private val keyBytes = MessageDigest.getInstance("SHA-256").digest(secret.toByteArray(StandardCharsets.UTF_8))
     private val signer = MACSigner(keyBytes)
     private val verifier = MACVerifier(keyBytes)
 
-    fun generate(userId: String, provider: String = "GOOGLE"): String {
+    private fun build(subject: String, type: String, ttlSeconds: Long, extraClaims: Map<String, Any?> = emptyMap()): String {
         val now = Instant.now()
-        val claims = JWTClaimsSet.Builder()
-            .subject(userId)
+        val builder = JWTClaimsSet.Builder()
+            .subject(subject)
             .issuer("mooda")
             .issueTime(Date.from(now))
-            .expirationTime(Date.from(now.plusSeconds(expiresMin * 60)))
-            .claim("provider", provider)
-            .build()
-        val jwt = SignedJWT(JWSHeader(JWSAlgorithm.HS256), claims)
+            .expirationTime(Date.from(now.plusSeconds(ttlSeconds)))
+            .claim("typ", type)
+        extraClaims.forEach { (k, v) -> if (v != null) builder.claim(k, v) }
+        val jwt = SignedJWT(JWSHeader(JWSAlgorithm.HS256), builder.build())
         jwt.sign(signer)
         return jwt.serialize()
     }
 
-    fun expiresInSeconds(): Long = expiresMin * 60
+    fun generateAccess(userId: String): String = build(userId, "access", accessMin * 60)
+    fun generateRefresh(userId: String): String = build(userId, "refresh", refreshDays * 24 * 60 * 60)
+    fun generateVerification(email: String): String = build(email, "verify", verifyHours * 60 * 60, mapOf("email" to email))
+
+    fun accessExpiresInSeconds(): Long = accessMin * 60
 
     fun verify(token: String): JwtPayload? {
         return try {
@@ -47,13 +53,14 @@ class JwtSupport(
             val claims = jwt.jwtClaimsSet
             val exp = claims.expirationTime?.toInstant() ?: return null
             if (exp.isBefore(Instant.now())) return null
+            val type = claims.getStringClaim("typ") ?: return null
+            val email = try { claims.getStringClaim("email") } catch (e: Exception) { null }
             JwtPayload(
-                userId = claims.subject,
-                provider = claims.getStringClaim("provider"),
-                expiresAt = exp
+                subject = claims.subject,
+                type = type,
+                expiresAt = exp,
+                email = email
             )
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 }

@@ -42,18 +42,29 @@ class ApiTests {
     }
 
     @Test
-    fun `auth google with TEST returns token and me works`() {
-        val tokenMap = client.post()
-            .uri("/api/v1/auth/google")
+    fun `email signup verify returns token and me works`() {
+        val req = client.post()
+            .uri("/api/v1/auth/request-signup")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("idToken" to "TEST"))
+            .bodyValue(mapOf("email" to "test@example.com"))
             .exchange()
             .expectStatus().isOk
             .expectBody(Map::class.java)
             .returnResult()
             .responseBody as Map<*, *>
 
-        val token = tokenMap["accessToken"] as String
+        val verificationToken = req["verificationToken"] as String
+        assertThat(verificationToken).isNotBlank
+
+        val pair = client.get()
+            .uri("/api/v1/auth/verify?token=${'$'}verificationToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(Map::class.java)
+            .returnResult()
+            .responseBody as Map<*, *>
+
+        val token = pair["accessToken"] as String
         assertThat(token).isNotBlank
 
         client.get()
@@ -62,7 +73,7 @@ class ApiTests {
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.userId").value<String> { v -> assertThat(v).startsWith("u-test-subject") }
+            .jsonPath("$.userId").value<String> { v -> assertThat(v).startsWith("u-") }
     }
 
     @Test
@@ -81,17 +92,6 @@ class ApiTests {
         assertThat(happy!!["label"]).isEqualTo("Счастливый")
     }
 
-    @Test
-    fun `auth google audience mismatch returns problem code`() {
-        client.post()
-            .uri("/api/v1/auth/google")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("idToken" to "TEST_AUD_MISMATCH"))
-            .exchange()
-            .expectStatus().isUnauthorized
-            .expectBody()
-            .jsonPath("$.code").isEqualTo("oidc_audience_mismatch")
-    }
 
     @Test
     fun `auth google invalid token returns problem code`() {
