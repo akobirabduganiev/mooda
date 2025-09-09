@@ -63,8 +63,12 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleGeneric(e: Exception): Mono<ProblemDetail> {
-        val pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error")
+        val detail = e.message ?: "Unexpected error"
+        val pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, detail)
         pd.title = "Internal Server Error"
+        pd.setProperty("code", "unexpected_error")
+        pd.setProperty("exception", e.javaClass.name)
+        e.cause?.let { pd.setProperty("cause", it.message ?: it.javaClass.name) }
         return Mono.just(pd)
     }
 }

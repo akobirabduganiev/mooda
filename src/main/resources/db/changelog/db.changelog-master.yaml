@@ -1,0 +1,241 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0001-create-users
+      author: junie
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: email
+            constraintName: uk_users_email
+  - changeSet:
+      id: 0002-create-devices
+      author: junie
+      changes:
+        - createTable:
+            tableName: devices
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: device_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_seen_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: devices
+            columnNames: device_id
+            constraintName: uk_devices_device_id
+        - createIndex:
+            tableName: devices
+            indexName: idx_devices_user_id
+            columns:
+              - column:
+                  name: user_id
+  - changeSet:
+      id: 0003-create-moods
+      author: junie
+      changes:
+        - createTable:
+            tableName: moods
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: device_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mood_type
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: country
+                  type: varchar(64)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: locale
+                  type: varchar(32)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: day
+                  type: date
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: moods
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_moods_user_id
+            onDelete: SET NULL
+        - createIndex:
+            tableName: moods
+            indexName: idx_moods_user_day
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: day
+        - createIndex:
+            tableName: moods
+            indexName: idx_moods_device_day
+            columns:
+              - column:
+                  name: device_id
+              - column:
+                  name: day
+        - createIndex:
+            tableName: moods
+            indexName: idx_moods_day
+            columns:
+              - column:
+                  name: day
+  - changeSet:
+      id: 0004-create-reports
+      author: junie
+      changes:
+        - createTable:
+            tableName: reports
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: mood_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: reason
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: reports
+            baseColumnNames: mood_id
+            referencedTableName: moods
+            referencedColumnNames: id
+            constraintName: fk_reports_mood_id
+            onDelete: SET NULL
+        - createIndex:
+            tableName: reports
+            indexName: idx_reports_mood_id
+            columns:
+              - column:
+                  name: mood_id
+  - changeSet:
+      id: 0005-create-user-identities
+      author: junie
+      changes:
+        - createTable:
+            tableName: user_identities
+            columns:
+              - column:
+                  name: id
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: provider
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_identities
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_user_identities_user_id
+            onDelete: CASCADE
+        - addUniqueConstraint:
+            tableName: user_identities
+            columnNames: provider, subject
+            constraintName: uk_user_identities_provider_subject
+        - createIndex:
+            tableName: user_identities
+            indexName: idx_user_identities_user_provider
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: provider

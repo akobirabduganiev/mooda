@@ -16,11 +16,13 @@ import tech.nuqta.mooda.infrastructure.security.DeviceIdWebFilter
 import java.time.*
 import org.springframework.http.HttpStatus
 import java.util.*
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 
 @RestController
 class MoodController(
     private val moodRepository: MoodRepository,
-    private val redis: RedisService
+    private val redis: RedisService,
+    private val r2dbc: R2dbcEntityTemplate
 ) {
     data class SubmitMoodRequest(val moodType: String)
     data class SubmitMoodResponse(val status: String = "ok", val shareCardUrl: String)
@@ -47,14 +49,19 @@ class MoodController(
             val rlTtl = Duration.ofSeconds(60)
             val rlThreshold = 5L
 
-            redis.incrementWithTtlIfFirst(rlKey, rlTtl).flatMap { count ->
+            redis.incrementWithTtlIfFirst(rlKey, rlTtl)
+                .onErrorResume { Mono.just(1L) }
+                .flatMap { count ->
                 if (count > rlThreshold) {
                     return@flatMap Mono.error(ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "rate_limited"))
                 }
 
                 val guardKey = if (isUser) "mooda:submitted:user:$subject:$dayStr" else "mooda:submitted:dev:$subject:$dayStr"
 
-                redis.get(guardKey).defaultIfEmpty("").flatMap { existing ->
+                redis.get(guardKey)
+                    .onErrorResume { Mono.empty() }
+                    .defaultIfEmpty("")
+                    .flatMap { existing ->
                     if (existing.isNotEmpty()) {
                         return@flatMap Mono.error(ResponseStatusException(HttpStatus.CONFLICT, "already_submitted_today"))
                     }
@@ -70,7 +77,7 @@ class MoodController(
                         day = day
                     )
 
-                    moodRepository.save(entity).flatMap {
+                    r2dbc.insert(entity).flatMap {
                         // set guard 24h
                         val guardTtl = Duration.ofHours(24)
                         val counterKey = "mooda:cnt:today:mood:${moodType.name}"
@@ -78,9 +85,9 @@ class MoodController(
                         val lastTtl = if (isUser) Duration.ofDays(30) else Duration.ofDays(7)
                         val lastJson = "{\"day\":\"$dayStr\",\"moodType\":\"${moodType.name}\"}"
 
-                        redis.set(guardKey, "1", guardTtl)
-                            .then(redis.incrementWithTtlIfFirst(counterKey, Duration.ofHours(48)).then())
-                            .then(redis.set(lastKey, lastJson, lastTtl))
+                        redis.set(guardKey, "1", guardTtl).onErrorResume { Mono.just(false) }
+                            .then(redis.incrementWithTtlIfFirst(counterKey, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then())
+                            .then(redis.set(lastKey, lastJson, lastTtl).onErrorResume { Mono.just(false) })
                             .thenReturn(SubmitMoodResponse(shareCardUrl = "/share/$dayStr"))
                     }
                 }

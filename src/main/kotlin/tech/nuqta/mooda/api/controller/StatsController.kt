@@ -67,7 +67,7 @@ class StatsController(
             redis.get(key).map { it.toLongOrNull() ?: 0L }.defaultIfEmpty(0L).map { type.name to it }
         }
         return Mono.zip(monos) { arr ->
-            arr.map { it as Pair<String, Long> }.toMap()
+            arr.associate { it as Pair<String, Long> }
         }
     }
 
