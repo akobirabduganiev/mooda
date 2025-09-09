@@ -1,13 +1,13 @@
 package tech.nuqta.mooda.domain.service
 
-import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
 
 @Service
 class MeService(
-    private val moodRepository: MoodRepository
+    private val moodRepositoryProvider: ObjectProvider<MoodRepository>
 ) {
     data class MeResponse(
         val userId: String,
@@ -29,7 +29,7 @@ class MeService(
         }
         if (days == 0) return Mono.just(MeMoodsResponse(items = emptyList()))
 
-        val repo = moodRepository ?: return Mono.just(MeMoodsResponse(items = emptyList()))
+        val repo = moodRepositoryProvider.ifAvailable ?: return Mono.just(MeMoodsResponse(items = emptyList()))
         return repo.findByUserIdOrderByDayDesc(userId)
             .take(days.toLong())
             .map { entity -> MeMoodsItem(day = entity.day.toString(), moodType = entity.moodType) }
