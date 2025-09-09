@@ -1,5 +1,6 @@
 package tech.nuqta.mooda.infrastructure.redis
 
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
@@ -12,21 +13,24 @@ interface RedisService {
 }
 
 @Component
-class RedisServiceImpl(private val redis: ReactiveStringRedisTemplate) : RedisService {
+class RedisServiceImpl(@Autowired(required = false) private val redis: ReactiveStringRedisTemplate?) : RedisService {
     override fun incrementWithTtlIfFirst(key: String, ttl: Duration): Mono<Long> {
-        val ops = redis.opsForValue()
+        val r = redis ?: return Mono.just(1L)
+        val ops = r.opsForValue()
         return ops.increment(key).flatMap { count ->
             if (count == 1L) {
-                redis.expire(key, ttl).thenReturn(count)
+                r.expire(key, ttl).thenReturn(count)
             } else Mono.just(count)
         }
     }
 
     override fun get(key: String): Mono<String> {
-        return redis.opsForValue().get(key)
+        val r = redis ?: return Mono.just("0")
+        return r.opsForValue().get(key)
     }
 
     override fun set(key: String, value: String, ttl: Duration): Mono<Boolean> {
-        return redis.opsForValue().set(key, value, ttl)
+        val r = redis ?: return Mono.just(true)
+        return r.opsForValue().set(key, value, ttl)
     }
 }

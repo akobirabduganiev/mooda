@@ -1,5 +1,6 @@
 package tech.nuqta.mooda.domain.service
 
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -7,7 +8,6 @@ import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.domain.model.MoodType
 import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
-import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
 import tech.nuqta.mooda.infrastructure.redis.RedisService
 import java.time.Duration
 import java.time.LocalDate
@@ -16,9 +16,8 @@ import java.util.*
 
 @Service
 class MoodService(
-    private val moodRepository: MoodRepository,
     private val redis: RedisService,
-    private val r2dbc: R2dbcEntityTemplate,
+    private val r2dbcProvider: ObjectProvider<R2dbcEntityTemplate>
 ) {
     data class SubmitCommand(
         val moodType: String,
@@ -32,6 +31,8 @@ class MoodService(
     data class SubmitResult(val shareCardUrl: String)
 
     fun submit(cmd: SubmitCommand): Mono<SubmitResult> {
+        val r2dbc = r2dbcProvider.ifAvailable
+            ?: return Mono.error(ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "db_unavailable"))
         val moodType = MoodType.from(cmd.moodType)
         val userId = cmd.userId
         val deviceId = cmd.deviceId
