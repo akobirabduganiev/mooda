@@ -15,6 +15,10 @@ data class UserEntity(
     @Column("last_name")
     val lastName: String? = null,
     val country: String? = null,
+    @Column("password_hash")
+    val passwordHash: String? = null,
+    @Column("email_verified")
+    val emailVerified: Boolean = true,
     @Column("created_at")
     val createdAt: Instant = Instant.now()
 )

@@ -284,3 +284,22 @@ databaseChangeLog:
                   name: user_id
               - column:
                   name: provider
+
+  - changeSet:
+      id: 0008-auth-password-email-verified
+      author: junie
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: password_hash
+                  type: varchar(255)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: email_verified
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false

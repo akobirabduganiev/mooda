@@ -1,0 +1,28 @@
+spring:
+  profiles:
+    active: prod
+
+springdoc:
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_UI_ENABLED:false}
+
+app:
+  auth:
+    debug-expose-token: ${DEBUG_EXPOSE_TOKEN:false}
+  security:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

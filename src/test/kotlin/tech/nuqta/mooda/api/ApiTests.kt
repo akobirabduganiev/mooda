@@ -14,8 +14,12 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
+import tech.nuqta.mooda.infrastructure.persistence.entity.UserEntity
 import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
+import tech.nuqta.mooda.infrastructure.persistence.repository.UserRepository
 import java.time.LocalDate
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
@@ -23,6 +27,38 @@ class ApiTests {
 
     @Autowired
     lateinit var client: WebTestClient
+
+    private fun registerVerifyLogin(email: String = "test@example.com", password: String = "password", country: String = "UZ"): String {
+        val reg = client.post()
+            .uri("/api/v1/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("country" to country, "email" to email, "password" to password))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(Map::class.java)
+            .returnResult()
+            .responseBody as Map<*, *>
+        val verificationToken = reg["verificationToken"] as String
+        assertThat(verificationToken).isNotBlank
+
+        client.get()
+            .uri("/api/v1/auth/verify?token=$verificationToken")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("verified")
+
+        val pair = client.post()
+            .uri("/api/v1/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("email" to email, "password" to password))
+            .exchange()
+            .expectStatus().isOk
+            .expectBody(Map::class.java)
+            .returnResult()
+            .responseBody as Map<*, *>
+        return pair["accessToken"] as String
+    }
 
     @Test
     fun `moods types returns localized labels`() {
@@ -42,30 +78,8 @@ class ApiTests {
     }
 
     @Test
-    fun `email signup verify returns token and me works`() {
-        val req = client.post()
-            .uri("/api/v1/auth/request-signup")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("email" to "test@example.com"))
-            .exchange()
-            .expectStatus().isOk
-            .expectBody(Map::class.java)
-            .returnResult()
-            .responseBody as Map<*, *>
-
-        val verificationToken = req["verificationToken"] as String
-        assertThat(verificationToken).isNotBlank
-
-        val pair = client.get()
-            .uri("/api/v1/auth/verify?token=${'$'}verificationToken")
-            .exchange()
-            .expectStatus().isOk
-            .expectBody(Map::class.java)
-            .returnResult()
-            .responseBody as Map<*, *>
-
-        val token = pair["accessToken"] as String
-        assertThat(token).isNotBlank
+    fun `email register verify login and me works`() {
+        val token = registerVerifyLogin()
 
         client.get()
             .uri("/api/v1/me")
@@ -92,19 +106,6 @@ class ApiTests {
         assertThat(happy!!["label"]).isEqualTo("Счастливый")
     }
 
-
-    @Test
-    fun `auth google invalid token returns problem code`() {
-        client.post()
-            .uri("/api/v1/auth/google")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("idToken" to "BAD"))
-            .exchange()
-            .expectStatus().isUnauthorized
-            .expectBody()
-            .jsonPath("$.code").isEqualTo("invalid_google_token")
-    }
-
     @Test
     fun `me moods requires auth`() {
         client.get()
@@ -115,16 +116,7 @@ class ApiTests {
 
     @Test
     fun `me moods with auth returns empty items`() {
-        val tokenMap = client.post()
-            .uri("/api/v1/auth/google")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("idToken" to "TEST"))
-            .exchange()
-            .expectStatus().isOk
-            .expectBody(Map::class.java)
-            .returnResult()
-            .responseBody as Map<*, *>
-        val token = tokenMap["accessToken"] as String
+        val token = registerVerifyLogin(email = "user2@example.com")
 
         client.get()
             .uri("/api/v1/me/moods?days=0")
@@ -136,4 +128,90 @@ class ApiTests {
             .jsonPath("$.items.length()").isEqualTo(0)
     }
 
+    @TestConfiguration
+    class TestBeans {
+        @Bean
+        @Primary
+        fun moodRepository(): MoodRepository = ApiFakeMoodRepository()
+
+        @Bean
+        @Primary
+        fun userRepository(): UserRepository = InMemoryUserRepository()
+    }
+}
+
+class InMemoryUserRepository : UserRepository {
+    private val byId = ConcurrentHashMap<String, UserEntity>()
+
+    override fun findByEmail(email: String): Mono<UserEntity> = Mono.justOrEmpty(byId.values.firstOrNull { it.email == email })
+
+    override fun <S : UserEntity> save(entity: S): Mono<S> {
+        byId[entity.id] = entity
+        return Mono.just(entity)
+    }
+
+    override fun <S : UserEntity> saveAll(entities: Iterable<S>): Flux<S> = Flux.fromIterable(entities).doOnNext { byId[it.id] = it }
+    override fun <S : UserEntity> saveAll(entityStream: Publisher<S>): Flux<S> = Flux.from(entityStream).doOnNext { byId[it.id] = it }
+
+    override fun findById(id: String): Mono<UserEntity> = Mono.justOrEmpty(byId[id])
+    override fun findById(id: Publisher<String>): Mono<UserEntity> = Mono.from(id).flatMap { findById(it) }
+
+    override fun existsById(id: String): Mono<Boolean> = Mono.just(byId.containsKey(id))
+    override fun existsById(id: Publisher<String>): Mono<Boolean> = Mono.from(id).flatMap { existsById(it) }
+
+    override fun findAll(): Flux<UserEntity> = Flux.fromIterable(byId.values)
+    override fun findAllById(ids: Iterable<String>): Flux<UserEntity> = Flux.fromIterable(ids).flatMap { findById(it) }
+    override fun findAllById(idStream: Publisher<String>): Flux<UserEntity> = Flux.from(idStream).flatMap { findById(it) }
+
+    override fun count(): Mono<Long> = Mono.just(byId.size.toLong())
+
+    override fun deleteById(id: String): Mono<Void> { byId.remove(id); return Mono.empty() }
+    override fun deleteById(id: Publisher<String>): Mono<Void> = Mono.from(id).doOnNext { byId.remove(it) }.then()
+
+    override fun delete(entity: UserEntity): Mono<Void> { byId.remove(entity.id); return Mono.empty() }
+    override fun deleteAllById(ids: Iterable<String>): Mono<Void> { ids.forEach { byId.remove(it) }; return Mono.empty() }
+    override fun deleteAll(entities: Iterable<UserEntity>): Mono<Void> { entities.forEach { byId.remove(it.id) }; return Mono.empty() }
+    override fun deleteAll(entityStream: Publisher<out UserEntity>): Mono<Void> = Flux.from(entityStream).doOnNext { byId.remove(it.id) }.then()
+    override fun deleteAll(): Mono<Void> { byId.clear(); return Mono.empty() }
+}
+
+class ApiFakeMoodRepository : MoodRepository {
+    private val store = mutableMapOf<String, MoodEntity>()
+
+    override fun <S : MoodEntity> save(entity: S): Mono<S> {
+        store[entity.id] = entity
+        return Mono.just(entity)
+    }
+
+    override fun <S : MoodEntity> saveAll(entities: Iterable<S>): Flux<S> = Flux.fromIterable(entities).doOnNext { store[it.id] = it }
+    override fun <S : MoodEntity> saveAll(entityStream: Publisher<S>): Flux<S> = Flux.from(entityStream).doOnNext { store[it.id] = it }
+
+    override fun findById(id: String): Mono<MoodEntity> = Mono.justOrEmpty(store[id])
+    override fun findById(id: Publisher<String>): Mono<MoodEntity> = Mono.from(id).flatMap { findById(it) }
+
+    override fun existsById(id: String): Mono<Boolean> = Mono.just(store.containsKey(id))
+    override fun existsById(id: Publisher<String>): Mono<Boolean> = Mono.from(id).flatMap { existsById(it) }
+
+    override fun findAll(): Flux<MoodEntity> = Flux.fromIterable(store.values)
+    override fun findAllById(ids: Iterable<String>): Flux<MoodEntity> = Flux.fromIterable(ids).flatMap { findById(it) }
+    override fun findAllById(idStream: Publisher<String>): Flux<MoodEntity> = Flux.from(idStream).flatMap { findById(it) }
+
+    override fun count(): Mono<Long> = Mono.just(store.size.toLong())
+
+    override fun deleteById(id: String): Mono<Void> { store.remove(id); return Mono.empty() }
+    override fun deleteById(id: Publisher<String>): Mono<Void> = Mono.from(id).doOnNext { store.remove(it) }.then()
+
+    override fun delete(entity: MoodEntity): Mono<Void> { store.remove(entity.id); return Mono.empty() }
+    override fun deleteAllById(ids: Iterable<String>): Mono<Void> { ids.forEach { store.remove(it) }; return Mono.empty() }
+    override fun deleteAll(entities: Iterable<MoodEntity>): Mono<Void> { entities.forEach { store.remove(it.id) }; return Mono.empty() }
+    override fun deleteAll(entityStream: Publisher<out MoodEntity>): Mono<Void> = Flux.from(entityStream).doOnNext { store.remove(it.id) }.then()
+    override fun deleteAll(): Mono<Void> { store.clear(); return Mono.empty() }
+
+    override fun findByUserIdAndDay(userId: String, day: LocalDate): Mono<MoodEntity> = Flux.fromIterable(store.values)
+        .filter { it.userId == userId && it.day == day }.next()
+    override fun findByDeviceIdAndDay(deviceId: String, day: LocalDate): Mono<MoodEntity> = Flux.fromIterable(store.values)
+        .filter { it.deviceId == deviceId && it.day == day }.next()
+    override fun findByUserIdOrderByDayDesc(userId: String): Flux<MoodEntity> = Flux.fromIterable(store.values)
+        .filter { it.userId == userId }.sort(compareByDescending { it.day })
+    override fun findByDay(day: LocalDate): Flux<MoodEntity> = Flux.fromIterable(store.values).filter { it.day == day }
 }
