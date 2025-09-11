@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.time.Duration
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 
 interface RedisService {
     fun incrementWithTtlIfFirst(key: String, ttl: Duration): Mono<Long>
@@ -41,7 +43,7 @@ class RedisServiceImpl(
     }
 
     override fun get(key: String): Mono<String> {
-        val r = redis ?: return Mono.just("0")
+        val r = redis ?: return Mono.empty()
         return r.opsForValue().get(key)
     }
 
@@ -64,14 +66,29 @@ class RedisServiceImpl(
     override fun subscribe(channel: String): Flux<String> {
         val container = listenerContainer ?: return Flux.empty()
         return container.receive(ChannelTopic(channel)).map { msg ->
-            msg.message
+            decodeToString(msg.message)
         }
     }
 
     override fun subscribePattern(pattern: String): Flux<Pair<String, String>> {
         val container = listenerContainer ?: return Flux.empty()
         return container.receive(PatternTopic(pattern)).map { msg ->
-            msg.channel to msg.message
+            decodeToString(msg.channel) to decodeToString(msg.message)
+        }
+    }
+
+    private fun decodeToString(value: Any?): String {
+        return when (value) {
+            is String -> value
+            is CharSequence -> value.toString()
+            is ByteArray -> String(value, StandardCharsets.UTF_8)
+            is ByteBuffer -> {
+                val buf = value.asReadOnlyBuffer()
+                val bytes = ByteArray(buf.remaining())
+                buf.get(bytes)
+                String(bytes, StandardCharsets.UTF_8)
+            }
+            else -> value?.toString() ?: ""
         }
     }
 }

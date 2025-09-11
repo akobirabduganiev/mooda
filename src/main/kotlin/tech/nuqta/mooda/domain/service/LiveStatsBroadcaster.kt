@@ -1,6 +1,7 @@
 package tech.nuqta.mooda.domain.service
 
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.Tags
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Sinks
@@ -37,10 +38,13 @@ class LiveStatsBroadcasterImpl(
     private val eventsCounter = meterRegistry.counter("mooda.sse.events")
 
     private fun channel(scope: String): Channel {
-        return channels.computeIfAbsent(scope.uppercase()) {
+        return channels.computeIfAbsent(scope.uppercase()) { s ->
+            val subscribers = AtomicInteger(0)
+            // Register gauge once per scope with tag
+            meterRegistry.gauge("mooda.sse.subscribers", Tags.of("scope", s), subscribers)
             Channel(
                 Sinks.many().multicast().onBackpressureBuffer(1024, false),
-                AtomicInteger(0)
+                subscribers
             )
         }
     }
@@ -54,7 +58,7 @@ class LiveStatsBroadcasterImpl(
     override fun stream(scope: String): Flux<LiveStatsBroadcaster.Event> {
         val ch = channel(scope)
         return ch.sink.asFlux()
-            .doOnSubscribe { ch.subscribers.incrementAndGet(); meterRegistry.gauge("mooda.sse.subscribers", ch.subscribers) }
+            .doOnSubscribe { ch.subscribers.incrementAndGet() }
             .doFinally { ch.subscribers.decrementAndGet() }
     }
 
