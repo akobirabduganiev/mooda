@@ -11,3 +11,5 @@ spring:
 app:
   auth:
     debug-expose-token: true
+  mail:
+    enabled: false

@@ -11,6 +11,7 @@ import tech.nuqta.mooda.infrastructure.persistence.entity.UserEntity
 import tech.nuqta.mooda.infrastructure.persistence.repository.UserRepository
 import tech.nuqta.mooda.infrastructure.security.JwtSupport
 import tech.nuqta.mooda.infrastructure.service.MailService
+import tech.nuqta.mooda.infrastructure.service.EmailTemplates
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.*
@@ -50,10 +51,14 @@ class AuthService(
             .then(Mono.defer {
                 val token = jwtSupport.generateVerification(normalized)
                 val link = buildVerifyLink(token)
+                val subject = "Emalingizni tasdiqlang"
+                val text = "Iltimos, emailingizni tasdiqlash uchun quyidagi havolani bosing: $link"
+                val html = EmailTemplates.verificationEmailHtml(appName = "Mooda", actionUrl = link, buttonText = "Emailni tasdiqlash")
                 mailService.sendEmail(
                     to = normalized,
-                    subject = "Verify your email",
-                    body = "Please confirm your email by clicking the link: $link"
+                    subject = subject,
+                    textBody = text,
+                    htmlBody = html
                 ).onErrorResume { _: Throwable -> Mono.empty() }
                     .then(Mono.just(RequestSignupResponse(sent = true, verificationToken = if (debugExposeToken) token else null)))
             })

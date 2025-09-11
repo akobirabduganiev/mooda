@@ -74,7 +74,13 @@ app:
     debug-expose-token: ${DEBUG_EXPOSE_TOKEN:false}
   mail:
     enabled: ${MAIL_ENABLED:true}
-    from: ${MAIL_FROM:no-reply@mooda.local}
+    from: Mooda Verification Service<verify@mooda.fun>
+    ses:
+      region: ${AWS_REGION:eu-north-1}
+      configuration-set: ${SES_CONFIGURATION_SET:my-first-configuration-set}
+      access-key-id: ${AWS_ACCESS_KEY_ID:}
+      secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+      session-token: ${AWS_SESSION_TOKEN:}
   share:
     png-enabled: ${SHARE_PNG_ENABLED:false}
   stats:

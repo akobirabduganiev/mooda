@@ -26,7 +26,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-    implementation("org.springframework.boot:spring-boot-starter-mail")
+
+    // AWS SES (v2)
+    implementation("software.amazon.awssdk:sesv2:2.25.66")
 
     // Liquibase for database migrations
     implementation("org.liquibase:liquibase-core")

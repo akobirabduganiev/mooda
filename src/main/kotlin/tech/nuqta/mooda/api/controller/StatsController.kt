@@ -8,14 +8,14 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.domain.service.StatsService
+import tech.nuqta.mooda.api.dto.stats.TodayStatsResponse
+import tech.nuqta.mooda.api.dto.stats.TotalItem
 
 @RestController
 class StatsController(
     private val statsService: StatsService
 ) {
     // Legacy response for backward compatibility
-    data class TotalItem(val moodType: String, val count: Long, val percent: Double)
-    data class TodayStatsResponse(val totals: List<TotalItem>, val top: List<String>)
 
     @GetMapping("/api/v1/stats/today", produces = [MediaType.APPLICATION_JSON_VALUE])
     fun today(

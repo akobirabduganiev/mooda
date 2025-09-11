@@ -9,17 +9,18 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import tech.nuqta.mooda.domain.service.MoodService
 import tech.nuqta.mooda.infrastructure.security.DeviceIdWebFilter
+import jakarta.validation.Valid
+import tech.nuqta.mooda.api.dto.mood.SubmitMoodRequest
+import tech.nuqta.mooda.api.dto.mood.SubmitMoodResponse
 
 @RestController
 class MoodController(
     private val moodService: MoodService
 ) {
-    data class SubmitMoodRequest(val moodType: String, val country: String, val comment: String? = null)
-    data class SubmitMoodResponse(val status: String = "ok", val shareCardUrl: String)
 
     @PostMapping("/api/v1/mood", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE])
     fun submitMood(
-        @RequestBody body: SubmitMoodRequest,
+        @Valid @RequestBody body: SubmitMoodRequest,
         auth: Mono<Authentication>,
         exchange: ServerWebExchange
     ): Mono<SubmitMoodResponse> {

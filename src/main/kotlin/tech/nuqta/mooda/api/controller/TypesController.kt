@@ -8,15 +8,10 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import tech.nuqta.mooda.domain.model.MoodType
 import java.util.Locale
+import tech.nuqta.mooda.api.dto.types.MoodTypeDto
 
 @RestController
 class TypesController(private val messageSource: MessageSource) {
-
-    data class MoodTypeDto(
-        val code: String,
-        val label: String,
-        val emoji: String
-    )
 
     @GetMapping("/api/v1/moods/types")
     fun getMoodTypes(
