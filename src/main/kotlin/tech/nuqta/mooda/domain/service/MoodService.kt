@@ -18,7 +18,8 @@ import java.util.*
 class MoodService(
     private val redis: RedisService,
     private val r2dbcProvider: ObjectProvider<R2dbcEntityTemplate>,
-    private val countryService: CountryService
+    private val countryService: CountryService,
+    private val statsService: StatsService
 ) {
     data class SubmitCommand(
         val moodType: String,
@@ -30,6 +31,26 @@ class MoodService(
     )
 
     data class SubmitResult(val shareCardUrl: String)
+
+    private fun buildStatsJson(dto: StatsService.LiveStatsDto): String {
+        val totals = dto.totals.joinToString(prefix = "[", postfix = "]") { t ->
+            "{" +
+                "\"mood\":\"${t.moodType}\"," +
+                "\"count\":${t.count}," +
+                "\"percent\":${t.percent}" +
+            "}"
+        }
+        val top = dto.top.joinToString(prefix = "[", postfix = "]") { s -> "\"$s\"" }
+        val countryField = dto.country?.let { "\"country\":\"$it\"," } ?: ""
+        return "{" +
+                "\"scope\":\"${dto.scope}\"," +
+                countryField +
+                "\"date\":\"${dto.date}\"," +
+                "\"totals\":$totals," +
+                "\"top\":$top," +
+                "\"totalCount\":${dto.totalCount}" +
+            "}"
+    }
 
     fun submit(cmd: SubmitCommand): Mono<SubmitResult> {
         val r2dbc = r2dbcProvider.ifAvailable
@@ -94,6 +115,23 @@ class MoodService(
                                 .then(redis.incrementWithTtlIfFirst(counterKeyType, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then())
                                 .then(redis.incrementWithTtlIfFirst(counterKeyTypeCountry, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then())
                                 .then(redis.set(lastKey, lastJson, lastTtl).onErrorResume { Mono.just(false) })
+                                .then(
+                                    // Publish updated stats snapshots to Redis for GLOBAL and COUNTRY scopes
+                                    Mono.defer {
+                                        val lastTtlStats = Duration.ofHours(48)
+                                        val globalMono: Mono<Void> = statsService.live(null, null).flatMap { dto ->
+                                            val json = buildStatsJson(dto)
+                                            val lastKeyGlobal = "mooda:stats:last:GLOBAL"
+                                            redis.set(lastKeyGlobal, json, lastTtlStats).onErrorResume { Mono.just(false) }.then(redis.publish("mooda:stats:GLOBAL", json)).then()
+                                        }
+                                        val countryMono: Mono<Void> = statsService.live(cc, null).flatMap { dto ->
+                                            val json = buildStatsJson(dto)
+                                            val lastKeyCountry = "mooda:stats:last:${cc}"
+                                            redis.set(lastKeyCountry, json, lastTtlStats).onErrorResume { Mono.just(false) }.then(redis.publish("mooda:stats:${cc}", json)).then()
+                                        }
+                                        Mono.`when`(globalMono, countryMono)
+                                    }
+                                )
                                 .thenReturn(SubmitResult(shareCardUrl = "/share/$dayStr"))
                         }
                     }

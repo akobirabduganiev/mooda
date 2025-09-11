@@ -9,6 +9,7 @@ import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
 import tech.nuqta.mooda.infrastructure.redis.RedisService
 import java.time.LocalDate
 import java.time.ZoneOffset
+import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
 
 @Service
 class StatsService(
@@ -32,6 +33,24 @@ class StatsService(
         val totalCount: Long
     )
 
+    // Range DTOs
+    data class DayTotals(
+        val date: String,
+        val totals: List<LiveTotalItem>,
+        val top: List<String>,
+        val totalCount: Long
+    )
+    data class RangeStatsDto(
+        val scope: String,
+        val country: String?,
+        val dateFrom: String,
+        val dateTo: String,
+        val totals: List<LiveTotalItem>,
+        val top: List<String>,
+        val totalCount: Long,
+        val series: List<DayTotals>
+    )
+
     fun today(country: String?, locale: String?): Mono<TodayStats> {
         val today = LocalDate.now(ZoneOffset.UTC)
         return fetchFromRedis(country).flatMap { redisTotals ->
@@ -42,21 +61,11 @@ class StatsService(
                 val repo = moodRepoProvider.ifAvailable
                     ?: return@flatMap Mono.just(buildTodayResponse(redisTotals))
                 repo.findByDay(today)
-                    .filter { entity ->
-                        val countryOk =
-                            country?.let { c -> entity.country.equals(c, ignoreCase = true) } ?: true
-                        val localeOk =
-                            locale?.let { l -> entity.locale?.startsWith(l, ignoreCase = true) == true } ?: true
-                        countryOk && localeOk
-                    }
+                    .filter { entity -> matchesCountryLocale(entity, country, locale) }
                     .collectList()
                     .map { list ->
-                        val map = MoodType.entries.associateWith { 0L }.toMutableMap()
-                        list.forEach { e ->
-                            val mt = runCatching { MoodType.valueOf(e.moodType) }.getOrNull()
-                            if (mt != null) map[mt] = map.getOrDefault(mt, 0L) + 1
-                        }
-                        buildTodayResponse(map.mapKeys { it.key.name })
+                        val map = aggregateCounts(list)
+                        buildTodayResponse(map)
                     }
             }
         }
@@ -72,24 +81,86 @@ class StatsService(
                 val repo = moodRepoProvider.ifAvailable
                     ?: return@flatMap Mono.just(buildLiveResponse(redisTotals, country, today))
                 repo.findByDay(today)
-                    .filter { entity ->
-                        val countryOk =
-                            country?.let { c -> entity.country?.equals(c, ignoreCase = true) == true } ?: true
-                        val localeOk =
-                            locale?.let { l -> entity.locale?.startsWith(l, ignoreCase = true) == true } ?: true
-                        countryOk && localeOk
-                    }
+                    .filter { entity -> matchesCountryLocale(entity, country, locale) }
                     .collectList()
                     .map { list ->
-                        val map = MoodType.entries.associateWith { 0L }.toMutableMap()
-                        list.forEach { e ->
-                            val mt = runCatching { MoodType.valueOf(e.moodType) }.getOrNull()
-                            if (mt != null) map[mt] = map.getOrDefault(mt, 0L) + 1
-                        }
-                        buildLiveResponse(map.mapKeys { it.key.name }, country, today)
+                        val map = aggregateCounts(list)
+                        buildLiveResponse(map, country, today)
                     }
             }
         }
+    }
+
+    fun byDay(date: LocalDate, country: String?, locale: String?): Mono<LiveStatsDto> {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        if (date == today) return live(country, locale)
+        val repo = moodRepoProvider.ifAvailable
+            ?: return Mono.just(buildLiveResponse(emptyMap(), country, date))
+        return repo.findByDay(date)
+            .filter { entity -> matchesCountryLocale(entity, country, locale) }
+            .collectList()
+            .map { list ->
+                val map = aggregateCounts(list)
+                buildLiveResponse(map, country, date)
+            }
+    }
+
+    fun range(period: String, country: String?, locale: String?): Mono<RangeStatsDto> {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val days = when (period.lowercase()) {
+            "week", "7d" -> 7L
+            "month", "30d" -> 30L
+            "year", "365d" -> 365L
+            else -> 7L
+        }
+        val start = today.minusDays(days - 1)
+        val repo = moodRepoProvider.ifAvailable
+            ?: return Mono.just(
+                RangeStatsDto(
+                    scope = if (country.isNullOrBlank()) "GLOBAL" else "COUNTRY",
+                    country = country?.uppercase(),
+                    dateFrom = start.toString(),
+                    dateTo = today.toString(),
+                    totals = buildLiveResponse(emptyMap(), country, today).totals,
+                    top = emptyList(),
+                    totalCount = 0,
+                    series = emptyList()
+                )
+            )
+        return repo.findByDayBetween(start, today)
+            .filter { entity -> matchesCountryLocale(entity, country, locale) }
+            .collectList()
+            .map { list ->
+                // Group by day
+                val byDay = list.groupBy { it.day }
+                // Build series
+                val series = mutableListOf<DayTotals>()
+                val aggCounts = HashMap<String, Long>(MoodType.entries.size)
+                var d = start
+                while (!d.isAfter(today)) {
+                    val entities = byDay[d].orEmpty()
+                    val dayMap = aggregateCounts(entities)
+                    // accumulate
+                    for (mt in MoodType.entries) {
+                        val key = mt.name
+                        aggCounts[key] = (aggCounts[key] ?: 0L) + (dayMap[key] ?: 0L)
+                    }
+                    val dayDto = buildLiveResponse(dayMap, country, d)
+                    series.add(DayTotals(date = dayDto.date, totals = dayDto.totals, top = dayDto.top, totalCount = dayDto.totalCount))
+                    d = d.plusDays(1)
+                }
+                val overall = buildLiveResponse(aggCounts, country, today)
+                RangeStatsDto(
+                    scope = overall.scope,
+                    country = overall.country,
+                    dateFrom = start.toString(),
+                    dateTo = today.toString(),
+                    totals = overall.totals,
+                    top = overall.top,
+                    totalCount = overall.totalCount,
+                    series = series
+                )
+            }
     }
 
     private fun fetchFromRedis(country: String?): Mono<Map<String, Long>> {
@@ -104,6 +175,23 @@ class StatsService(
         return Mono.zip(monos) { arr ->
             (arr.toList() as List<Pair<String, Long>>).toMap()
         }
+    }
+
+    private fun matchesCountryLocale(entity: MoodEntity, country: String?, locale: String?): Boolean {
+        val countryOk = country?.let { c -> entity.country.equals(c, ignoreCase = true) } ?: true
+        val localeOk = locale?.let { l -> entity.locale?.startsWith(l, ignoreCase = true) == true } ?: true
+        return countryOk && localeOk
+    }
+
+    private fun aggregateCounts(entities: List<MoodEntity>): Map<String, Long> {
+        if (entities.isEmpty()) return emptyMap()
+        val counts = HashMap<String, Long>(MoodType.entries.size)
+        entities.forEach { e ->
+            val mt = runCatching { MoodType.valueOf(e.moodType) }.getOrNull() ?: return@forEach
+            val key = mt.name
+            counts[key] = (counts[key] ?: 0L) + 1
+        }
+        return counts
     }
 
     private fun buildTodayResponse(countsByType: Map<String, Long>): TodayStats {

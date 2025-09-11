@@ -11,4 +11,5 @@ interface MoodRepository : ReactiveCrudRepository<MoodEntity, String> {
     fun findByDeviceIdAndDay(deviceId: String, day: LocalDate): Mono<MoodEntity>
     fun findByUserIdOrderByDayDesc(userId: String): Flux<MoodEntity>
     fun findByDay(day: LocalDate): Flux<MoodEntity>
+    fun findByDayBetween(start: LocalDate, end: LocalDate): Flux<MoodEntity>
 }

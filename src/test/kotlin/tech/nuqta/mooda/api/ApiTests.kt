@@ -232,4 +232,6 @@ class ApiFakeMoodRepository : MoodRepository {
     override fun findByUserIdOrderByDayDesc(userId: String): Flux<MoodEntity> = Flux.fromIterable(store.values)
         .filter { it.userId == userId }.sort(compareByDescending { it.day })
     override fun findByDay(day: LocalDate): Flux<MoodEntity> = Flux.fromIterable(store.values).filter { it.day == day }
+    override fun findByDayBetween(start: LocalDate, end: LocalDate): Flux<MoodEntity> = Flux.fromIterable(store.values)
+        .filter { !it.day.isBefore(start) && !it.day.isAfter(end) }
 }
