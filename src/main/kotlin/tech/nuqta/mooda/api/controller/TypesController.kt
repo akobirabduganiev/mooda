@@ -9,9 +9,13 @@ import org.springframework.web.bind.annotation.RestController
 import tech.nuqta.mooda.domain.model.MoodType
 import java.util.Locale
 import tech.nuqta.mooda.api.dto.types.MoodTypeDto
+import tech.nuqta.mooda.api.dto.types.CountryDto
 
 @RestController
-class TypesController(private val messageSource: MessageSource) {
+class TypesController(
+    private val messageSource: MessageSource,
+    private val countryService: tech.nuqta.mooda.domain.service.CountryService
+) {
 
     @GetMapping("/api/v1/moods/types")
     fun getMoodTypes(
@@ -28,6 +32,15 @@ class TypesController(private val messageSource: MessageSource) {
             }
             MoodTypeDto(code = it.name, label = label, emoji = it.defaultEmoji)
         }
+    }
+
+    @GetMapping("/api/v1/types/countries")
+    fun getCountries(
+        @RequestParam(required = false) locale: String?,
+        @RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false) acceptLanguage: String?
+    ): List<CountryDto> {
+        val resolved = resolveLocale(locale, acceptLanguage)
+        return countryService.listCountries(resolved).map { CountryDto(code = it.code, name = it.name, emoji = it.emoji) }
     }
 
     private fun resolveLocale(localeParam: String?, acceptLanguage: String?): Locale {

@@ -17,7 +17,8 @@ import java.util.*
 @Service
 class MoodService(
     private val redis: RedisService,
-    private val r2dbcProvider: ObjectProvider<R2dbcEntityTemplate>
+    private val r2dbcProvider: ObjectProvider<R2dbcEntityTemplate>,
+    private val countryService: CountryService
 ) {
     data class SubmitCommand(
         val moodType: String,
@@ -42,6 +43,7 @@ class MoodService(
         if (cmd.country.isBlank()) {
             return Mono.error(ResponseStatusException(HttpStatus.BAD_REQUEST, "country_required"))
         }
+        val cc = try { countryService.requireValid(cmd.country) } catch (e: ResponseStatusException) { return Mono.error(e) }
 
         val day = LocalDate.now(ZoneOffset.UTC)
         val dayStr = day.toString()
@@ -74,7 +76,7 @@ class MoodService(
                             userId = userId,
                             deviceId = deviceId ?: "unknown",
                             moodType = moodType.name,
-                            country = cmd.country.uppercase(),
+                            country = cc,
                             locale = cmd.locale,
                             day = day,
                             comment = cmd.comment
@@ -82,7 +84,7 @@ class MoodService(
                         r2dbc.insert(entity).flatMap {
                             val guardTtl = Duration.ofHours(24)
                             val counterKeyType = "mooda:cnt:today:mood:${moodType.name}"
-                            val counterKeyTypeCountry = "mooda:cnt:today:country:${cmd.country.uppercase()}:${moodType.name}"
+                            val counterKeyTypeCountry = "mooda:cnt:today:country:${cc}:${moodType.name}"
                             val countriesSetKey = "mooda:countries:today"
                             val lastKey = if (isUser) "mooda:last:user:$subject" else "mooda:last:dev:$subject"
                             val lastTtl = if (isUser) Duration.ofDays(30) else Duration.ofDays(7)

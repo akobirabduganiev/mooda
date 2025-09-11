@@ -21,6 +21,7 @@ class AuthService(
     private val userRepo: UserRepository?,
     private val jwtSupport: JwtSupport,
     private val mailService: MailService,
+    private val countryService: CountryService,
     @param:Autowired(required = false)
     private val r2dbc: org.springframework.data.r2dbc.core.R2dbcEntityTemplate?,
     @param:Value("\${app.auth.verify-url-base:http://localhost:8010/api/v1/auth/verify}") private val verifyUrlBase: String,
@@ -44,16 +45,17 @@ class AuthService(
             .switchIfEmpty(Mono.defer {
                 val userId = "u-" + UUID.randomUUID().toString()
                 val hash = passwordEncoder.encode(password)
-                val entity = UserEntity(id = userId, email = normalized, country = country.trim().uppercase(), passwordHash = hash, emailVerified = false)
+                val cc = countryService.requireIso2(country)
+                val entity = UserEntity(id = userId, email = normalized, country = cc, passwordHash = hash, emailVerified = false)
                 val saveMono: Mono<UserEntity> = r2dbc?.insert(UserEntity::class.java)?.using(entity) ?: repo.save(entity)
                 saveMono
             })
             .then(Mono.defer {
                 val token = jwtSupport.generateVerification(normalized)
                 val link = buildVerifyLink(token)
-                val subject = "Emalingizni tasdiqlang"
-                val text = "Iltimos, emailingizni tasdiqlash uchun quyidagi havolani bosing: $link"
-                val html = EmailTemplates.verificationEmailHtml(appName = "Mooda", actionUrl = link, buttonText = "Emailni tasdiqlash")
+                val subject = "Verify your email"
+                val text = "Please confirm your email by clicking the link: $link"
+                val html = EmailTemplates.verificationEmailHtml(appName = "Mooda", actionUrl = link, buttonText = "Verify email")
                 mailService.sendEmail(
                     to = normalized,
                     subject = subject,

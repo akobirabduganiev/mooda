@@ -1,15 +1,15 @@
 package tech.nuqta.mooda.infrastructure.service
 
 object EmailTemplates {
-    fun verificationEmailHtml(appName: String = "Mooda", actionUrl: String, buttonText: String = "Tasdiqlash"): String {
+    fun verificationEmailHtml(appName: String = "Mooda", actionUrl: String, buttonText: String = "Verify email"): String {
         // Lightweight, responsive HTML email with inline CSS compatible with most clients
         return """
             <!doctype html>
-            <html lang=\"uz\">
+            <html lang=\"en\">
             <head>
               <meta charset=\"UTF-8\" />
               <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
-              <title>$appName – Email tasdiqlash</title>
+              <title>$appName – Verify your email</title>
               <style>
                 /* Fallback styles for clients that respect <style> */
                 .btn { background-color:#4F46E5; color:#ffffff !important; text-decoration:none; padding:14px 22px; border-radius:8px; display:inline-block; font-weight:600 }
@@ -29,13 +29,13 @@ object EmailTemplates {
                       </tr>
                       <tr>
                         <td style=\"padding:0 24px 8px 24px; text-align:center;\">
-                          <div style=\"font-size:18px; font-weight:600; color:#111827;\">Emailingizni tasdiqlang</div>
+                          <div style=\"font-size:18px; font-weight:600; color:#111827;\">Verify your email</div>
                         </td>
                       </tr>
                       <tr>
                         <td style=\"padding:0 24px 6px 24px; text-align:center;\">
                           <div style=\"font-size:14px; line-height:22px; color:#374151;\">
-                            Salom! Hisobingizni faollashtirish uchun quyidagi tugmani bosing.
+                            Hi! To activate your account, please click the button below.
                           </div>
                         </td>
                       </tr>
@@ -47,7 +47,7 @@ object EmailTemplates {
                       <tr>
                         <td style=\"padding:0 24px 18px 24px; text-align:center;\">
                           <div class=\"text-muted\" style=\"font-size:12px; line-height:18px; color:#6b7280;\">
-                            Agar tugma ishlamasa, quyidagi havolani brauzerga ko'chirib qo'ying:
+                            If the button doesn’t work, copy and paste the link below into your browser:
                           </div>
                         </td>
                       </tr>
@@ -60,7 +60,7 @@ object EmailTemplates {
                       </tr>
                       <tr>
                         <td style=\"padding:16px 24px 22px 24px; text-align:center; border-top:1px solid #F3F4F6;\">
-                          <div class=\"text-muted\" style=\"font-size:12px; color:#6b7280;\">Bu xabar avtomatik yuborildi. Javob yozish shart emas.</div>
+                          <div class=\"text-muted\" style=\"font-size:12px; color:#6b7280;\">This message was sent automatically. No reply is necessary.</div>
                         </td>
                       </tr>
                     </table>

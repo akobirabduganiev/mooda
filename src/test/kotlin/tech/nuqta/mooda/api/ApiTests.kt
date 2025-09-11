@@ -128,6 +128,24 @@ class ApiTests {
             .jsonPath("$.items.length()").isEqualTo(0)
     }
 
+    @Test
+    fun `types countries returns list with flags`() {
+        val body = client.get()
+            .uri("/api/v1/types/countries?locale=en")
+            .accept(MediaType.APPLICATION_JSON)
+            .exchange()
+            .expectStatus().isOk
+            .expectBodyList(Map::class.java)
+            .returnResult()
+            .responseBody!!
+
+        assertThat(body.size).isGreaterThan(10)
+        val uz = body.firstOrNull { it["code"] == "UZ" } as Map<*, *>?
+        assertThat(uz).isNotNull
+        assertThat(uz!!["emoji"]).isEqualTo("🇺🇿")
+        assertThat(uz["name"]).isNotNull
+    }
+
     @TestConfiguration
     class TestBeans {
         @Bean

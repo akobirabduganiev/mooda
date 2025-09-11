@@ -13,7 +13,8 @@ import tech.nuqta.mooda.api.dto.stats.TotalItem
 
 @RestController
 class StatsController(
-    private val statsService: StatsService
+    private val statsService: StatsService,
+    private val countryService: tech.nuqta.mooda.domain.service.CountryService
 ) {
     // Legacy response for backward compatibility
 
@@ -24,7 +25,8 @@ class StatsController(
         exchange: ServerWebExchange
     ): Mono<TodayStatsResponse> {
         exchange.response.headers.add("Cache-Control", "public, max-age=1, stale-while-revalidate=5")
-        return statsService.today(country, locale)
+        val cc = country?.let { countryService.requireValid(it) }
+        return statsService.today(cc, locale)
             .map { dto ->
                 TodayStatsResponse(
                     totals = dto.totals.map { TotalItem(it.moodType, it.count, it.percent) },
@@ -41,7 +43,8 @@ class StatsController(
         exchange: ServerWebExchange
     ): Mono<StatsService.LiveStatsDto> {
         exchange.response.headers.add("Cache-Control", "public, max-age=1, stale-while-revalidate=5")
-        return statsService.live(country, locale)
+        val cc = country?.let { countryService.requireValid(it) }
+        return statsService.live(cc, locale)
     }
 
     // Leaderboard endpoint

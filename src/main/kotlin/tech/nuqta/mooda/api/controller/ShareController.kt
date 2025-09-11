@@ -17,6 +17,7 @@ import java.util.Locale
 class ShareController(
     private val statsService: StatsService,
     private val messageSource: MessageSource,
+    private val countryService: tech.nuqta.mooda.domain.service.CountryService,
     @Value("\${app.share.png-enabled:false}") private val pngEnabled: Boolean
 ) {
 
@@ -34,7 +35,8 @@ class ShareController(
         exchange.response.headers.contentType = MediaType.valueOf("image/svg+xml")
 
         val loc = resolveLocale(locale, acceptLanguage)
-        return statsService.live(country, loc.language)
+        val cc = country?.let { countryService.requireValid(it) }
+        return statsService.live(cc, loc.language)
             .map { dto ->
                 val title = if (dto.scope == "GLOBAL")
                     msg("share.title.global", loc)
