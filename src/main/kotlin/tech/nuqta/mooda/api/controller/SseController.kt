@@ -42,9 +42,7 @@ class SseController(
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized")
         }
         // SSE-friendly headers to avoid proxy buffering and caching
-        exchange.response.headers.add("Cache-Control", "no-cache, no-transform")
-        exchange.response.headers.add("X-Accel-Buffering", "no")
-        exchange.response.headers.add("Connection", "keep-alive")
+        applySseHeaders(exchange)
 
         val cc = country?.let { countryService.requireValid(it) }
         val scope = (cc ?: "GLOBAL").uppercase()
@@ -54,45 +52,11 @@ class SseController(
         @Suppress("UNUSED_VARIABLE")
         val lastEventId = lastIdHeader
 
-        val lastKey = "mooda:stats:last:$scope"
-        val initial: Mono<ServerSentEvent<String>> = redis.get(lastKey)
-            .onErrorResume { Mono.empty() }
-            .filter { it.isNotBlank() }
-            .map { json ->
-                ServerSentEvent.builder<String>()
-                    .event("stats")
-                    .id(System.currentTimeMillis().toString())
-                    .data(json)
-                    .build()
-            }
-            .switchIfEmpty(
-                // If we have nothing in Redis yet, compute current snapshot from service as a fallback
-                statsService.live(cc, null).map { dto ->
-                    val json = toJson(dto)
-                    ServerSentEvent.builder<String>()
-                        .event("stats")
-                        .id(System.currentTimeMillis().toString())
-                        .data(json)
-                        .build()
-                }
-            )
+        val initial: Mono<ServerSentEvent<String>> = initialSnapshot(scope, cc)
 
-        val stream = broadcaster.stream(scope).map { ev ->
-            val id = ev.id ?: System.currentTimeMillis().toString()
-            ServerSentEvent.builder<String>()
-                .event(ev.type)
-                .id(id)
-                .data(ev.data)
-                .build()
-        }
+        val stream = eventStream(scope)
 
-        val heartbeat = Flux.interval(Duration.ofSeconds(25))
-            .map {
-                ServerSentEvent.builder<String>()
-                    .event("ping")
-                    .data("")
-                    .build()
-            }
+        val heartbeat = heartbeatFlux()
 
         return Flux.concat(initial, Flux.merge(stream, heartbeat))
             .doOnCancel { /* connection closed */ }
@@ -116,48 +80,51 @@ class SseController(
                 }
 
                 // SSE-friendly headers
-                exchange.response.headers.add("Cache-Control", "no-cache, no-transform")
-                exchange.response.headers.add("X-Accel-Buffering", "no")
-                exchange.response.headers.add("Connection", "keep-alive")
+                applySseHeaders(exchange)
 
-                val lastKey = "mooda:stats:last:GLOBAL"
-                val initial: Mono<ServerSentEvent<String>> = redis.get(lastKey)
-                    .onErrorResume { Mono.empty() }
-                    .filter { it.isNotBlank() }
-                    .map { json ->
-                        ServerSentEvent.builder<String>()
-                            .event("stats")
-                            .id(System.currentTimeMillis().toString())
-                            .data(json)
-                            .build()
-                    }
-                    .switchIfEmpty(
-                        statsService.live(null, null).map { dto ->
-                            val json = toJson(dto)
-                            ServerSentEvent.builder<String>()
-                                .event("stats")
-                                .id(System.currentTimeMillis().toString())
-                                .data(json)
-                                .build()
-                        }
-                    )
+                val initial: Mono<ServerSentEvent<String>> = initialSnapshot("GLOBAL", null)
 
-                val stream = broadcaster.stream("GLOBAL").map { ev ->
-                    val id = ev.id ?: System.currentTimeMillis().toString()
-                    ServerSentEvent.builder<String>()
-                        .event(ev.type)
-                        .id(id)
-                        .data(ev.data)
-                        .build()
-                }
+                val stream = eventStream("GLOBAL")
 
-                val heartbeat = Flux.interval(Duration.ofSeconds(25)).map {
-                    ServerSentEvent.builder<String>().event("ping").data("").build()
-                }
+                val heartbeat = heartbeatFlux()
 
                 Flux.concat(initial, Flux.merge(stream, heartbeat))
             }
     }
+
+    private fun applySseHeaders(exchange: ServerWebExchange) {
+        exchange.response.headers.add("Cache-Control", "no-cache, no-transform")
+        exchange.response.headers.add("X-Accel-Buffering", "no")
+        exchange.response.headers.add("Connection", "keep-alive")
+    }
+
+    private fun sse(event: String, data: String, id: String = System.currentTimeMillis().toString()): ServerSentEvent<String> =
+        ServerSentEvent.builder<String>()
+            .event(event)
+            .id(id)
+            .data(data)
+            .build()
+
+    private fun initialSnapshot(scope: String, countryCode: String?): Mono<ServerSentEvent<String>> {
+        val lastKey = "mooda:stats:last:$scope"
+        return redis.get(lastKey)
+            .onErrorResume { Mono.empty() }
+            .filter { it.isNotBlank() }
+            .map { json -> sse("stats", json) }
+            .switchIfEmpty(
+                // If we have nothing in Redis yet, compute current snapshot from service as a fallback
+                statsService.live(countryCode, null).map { dto -> sse("stats", toJson(dto)) }
+            )
+    }
+
+    private fun eventStream(scope: String): Flux<ServerSentEvent<String>> =
+        broadcaster.stream(scope).map { ev ->
+            val id = ev.id ?: System.currentTimeMillis().toString()
+            sse(ev.type, ev.data, id)
+        }
+
+    private fun heartbeatFlux(): Flux<ServerSentEvent<String>> =
+        Flux.interval(Duration.ofSeconds(25)).map { sse("ping", "") }
 
     private fun toJson(dto: StatsService.LiveStatsDto): String {
         // Small manual JSON to avoid extra dependency
