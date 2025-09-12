@@ -26,6 +26,8 @@ class MoodController(
     ): Mono<SubmitMoodResponse> {
         val locale = exchange.request.headers.getFirst("Accept-Language")
         val deviceId = exchange.attributes[DeviceIdWebFilter.CTX_KEY] as? String
+        val fingerprint = exchange.attributes[DeviceIdWebFilter.CTX_FP_KEY] as? String
+        val cookiePresent = (exchange.attributes[DeviceIdWebFilter.CTX_COOKIE_PRESENT] as? Boolean) ?: false
 
         return auth.map { it.name }.defaultIfEmpty("")
             .flatMap { userIdOrEmpty ->
@@ -37,7 +39,9 @@ class MoodController(
                         comment = body.comment,
                         userId = userId,
                         deviceId = deviceId,
-                        locale = locale
+                        locale = locale,
+                        fingerprint = fingerprint,
+                        deviceCookiePresent = cookiePresent
                     )
                 )
             }

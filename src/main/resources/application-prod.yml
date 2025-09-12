@@ -13,7 +13,7 @@ app:
     debug-expose-token: ${DEBUG_EXPOSE_TOKEN:false}
   security:
     cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   mail:
     enabled: ${MAIL_ENABLED:true}
 

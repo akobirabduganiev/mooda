@@ -11,7 +11,9 @@ import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
 import tech.nuqta.mooda.infrastructure.redis.RedisService
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.*
 
 @Service
@@ -19,7 +21,9 @@ class MoodService(
     private val redis: RedisService,
     private val r2dbcProvider: ObjectProvider<R2dbcEntityTemplate>,
     private val countryService: CountryService,
-    private val statsService: StatsService
+    private val statsService: StatsService,
+    @org.springframework.beans.factory.annotation.Value("\${app.timezone:Asia/Tashkent}")
+    private val appTimezone: String
 ) {
     data class SubmitCommand(
         val moodType: String,
@@ -27,7 +31,9 @@ class MoodService(
         val comment: String? = null,
         val userId: String?,
         val deviceId: String?,
-        val locale: String?
+        val locale: String?,
+        val fingerprint: String? = null,
+        val deviceCookiePresent: Boolean = false
     )
 
     data class SubmitResult(val shareCardUrl: String)
@@ -59,14 +65,16 @@ class MoodService(
         val userId = cmd.userId
         val deviceId = cmd.deviceId
         val isUser = !userId.isNullOrBlank()
-        val subject = userId ?: deviceId ?: "unknown"
+        val anonSubject = if (cmd.deviceCookiePresent && !deviceId.isNullOrBlank()) deviceId else (cmd.fingerprint ?: deviceId ?: "unknown")
+        val subject = userId ?: anonSubject
 
         if (cmd.country.isBlank()) {
             return Mono.error(ResponseStatusException(HttpStatus.BAD_REQUEST, "country_required"))
         }
         val cc = try { countryService.requireValid(cmd.country) } catch (e: ResponseStatusException) { return Mono.error(e) }
 
-        val day = LocalDate.now(ZoneOffset.UTC)
+        val zone = try { ZoneId.of(appTimezone) } catch (e: Exception) { ZoneOffset.UTC }
+        val day = LocalDate.now(zone)
         val dayStr = day.toString()
 
         // Rate limiting
@@ -81,13 +89,15 @@ class MoodService(
                     return@flatMap Mono.error(ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "rate_limited"))
                 }
 
-                // Daily guard
+                // Daily guard (atomic via Redis SET NX)
                 val guardKey = if (isUser) "mooda:submitted:user:$subject:$dayStr" else "mooda:submitted:dev:$subject:$dayStr"
-                redis.get(guardKey)
-                    .onErrorResume { Mono.empty() }
-                    .defaultIfEmpty("")
-                    .flatMap { existing ->
-                        if (existing.isNotEmpty()) {
+                val nowZ = ZonedDateTime.now(zone)
+                val nextDayStart = nowZ.toLocalDate().plusDays(1).atStartOfDay(zone)
+                val guardTtl = Duration.between(nowZ, nextDayStart)
+                redis.setIfAbsent(guardKey, "1", guardTtl)
+                    .onErrorResume { Mono.just(false) }
+                    .flatMap { acquired ->
+                        if (!acquired) {
                             return@flatMap Mono.error(ResponseStatusException(HttpStatus.CONFLICT, "already_submitted_today"))
                         }
 
@@ -102,8 +112,7 @@ class MoodService(
                             day = day,
                             comment = cmd.comment
                         )
-                        r2dbc.insert(entity).flatMap {
-                            val guardTtl = Duration.ofHours(24)
+                        return@flatMap r2dbc.insert(entity).flatMap {
                             val counterKeyType = "mooda:cnt:today:mood:${moodType.name}"
                             val counterKeyTypeCountry = "mooda:cnt:today:country:${cc}:${moodType.name}"
                             val countriesSetKey = "mooda:countries:today"
@@ -111,8 +120,8 @@ class MoodService(
                             val lastTtl = if (isUser) Duration.ofDays(30) else Duration.ofDays(7)
                             val lastJson = "{\"day\":\"$dayStr\",\"moodType\":\"${moodType.name}\"}"
 
-                            redis.set(guardKey, "1", guardTtl).onErrorResume { Mono.just(false) }
-                                .then(redis.incrementWithTtlIfFirst(counterKeyType, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then())
+                            // No need to set guard again; it was already acquired
+                            redis.incrementWithTtlIfFirst(counterKeyType, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then()
                                 .then(redis.incrementWithTtlIfFirst(counterKeyTypeCountry, Duration.ofHours(48)).onErrorResume { Mono.just(1L) }.then())
                                 .then(redis.set(lastKey, lastJson, lastTtl).onErrorResume { Mono.just(false) })
                                 .then(

@@ -8,6 +8,7 @@ import tech.nuqta.mooda.domain.model.MoodType
 import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
 import tech.nuqta.mooda.infrastructure.redis.RedisService
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import tech.nuqta.mooda.infrastructure.persistence.entity.MoodEntity
 
@@ -16,8 +17,11 @@ class StatsService(
     private val redis: RedisService,
     private val moodRepoProvider: ObjectProvider<MoodRepository>,
     @param:Value("\${app.stats.min-sample-country:100}")
-    private val minSampleCountry: Int
+    private val minSampleCountry: Int,
+    @param:Value("\${app.timezone:Asia/Tashkent}")
+    private val appTimezone: String
 ) {
+    private val zone: ZoneId = runCatching { ZoneId.of(appTimezone) }.getOrElse { ZoneOffset.UTC }
     // Legacy DTOs used by /stats/today
     data class TotalItem(val moodType: String, val count: Long, val percent: Double)
     data class TodayStats(val totals: List<TotalItem>, val top: List<String>)
@@ -52,7 +56,7 @@ class StatsService(
     )
 
     fun today(country: String?, locale: String?): Mono<TodayStats> {
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val today = LocalDate.now(zone)
         return fetchFromRedis(country).flatMap { redisTotals ->
             val sum = redisTotals.values.sum()
             if (sum > 0L) {
@@ -72,7 +76,7 @@ class StatsService(
     }
 
     fun live(country: String?, locale: String?): Mono<LiveStatsDto> {
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val today = LocalDate.now(zone)
         return fetchFromRedis(country).flatMap { redisTotals ->
             val sum = redisTotals.values.sum()
             if (sum > 0L) {
@@ -92,7 +96,7 @@ class StatsService(
     }
 
     fun byDay(date: LocalDate, country: String?, locale: String?): Mono<LiveStatsDto> {
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val today = LocalDate.now(zone)
         if (date == today) return live(country, locale)
         val repo = moodRepoProvider.ifAvailable
             ?: return Mono.just(buildLiveResponse(emptyMap(), country, date))
@@ -106,7 +110,7 @@ class StatsService(
     }
 
     fun range(period: String, country: String?, locale: String?): Mono<RangeStatsDto> {
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val today = LocalDate.now(zone)
         val days = when (period.lowercase()) {
             "week", "7d" -> 7L
             "month", "30d" -> 30L
@@ -241,7 +245,7 @@ class StatsService(
     )
 
     fun leaderboard(limit: Int = 20): Mono<LeaderboardDto> {
-        val today = LocalDate.now(ZoneOffset.UTC)
+        val today = LocalDate.now(zone)
         // discover countries by scanning HAPPY keys
         val pattern = "mooda:cnt:today:country:*:HAPPY"
         return redis.scan(pattern)

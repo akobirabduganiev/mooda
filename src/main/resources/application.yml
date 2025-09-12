@@ -66,9 +66,10 @@ springdoc:
     enabled: ${SWAGGER_UI_ENABLED:true}
 
 app:
+  timezone: ${APP_TIMEZONE:Asia/Tashkent}
   security:
     cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
   auth:
     verify-url-base: ${VERIFY_URL_BASE:http://localhost:8010/api/v1/auth/verify}
     debug-expose-token: ${DEBUG_EXPOSE_TOKEN:false}

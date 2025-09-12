@@ -28,13 +28,18 @@ class SecurityConfig(
         authFilter.setServerAuthenticationConverter { exchange -> converter.convert(exchange) }
         authFilter.setRequiresAuthenticationMatcher(PathPatternParserServerWebExchangeMatcher("/api/**"))
 
-        // CORS configuration from allowlist property
+        // CORS configuration: open to all if empty or contains "*", otherwise use allowlist
         val allowedOrigins = allowedOriginsProp.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         val corsSource = UrlBasedCorsConfigurationSource()
-        if (allowedOrigins.isNotEmpty()) {
+        run {
             val corsConfig = CorsConfiguration()
-            corsConfig.allowedOrigins = allowedOrigins
-            corsConfig.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            if (allowedOrigins.isEmpty() || allowedOrigins.contains("*")) {
+                // Use patterns to support credentials with wildcard
+                corsConfig.allowedOriginPatterns = listOf("*")
+            } else {
+                corsConfig.allowedOrigins = allowedOrigins
+            }
+            corsConfig.allowedMethods = listOf("*")
             corsConfig.allowedHeaders = listOf("*")
             corsConfig.allowCredentials = true
             corsConfig.maxAge = 3600
@@ -43,7 +48,7 @@ class SecurityConfig(
 
         return http
             .csrf { it.disable() }
-            .cors { spec -> if (allowedOrigins.isNotEmpty()) spec.configurationSource(corsSource) }
+            .cors { spec -> spec.configurationSource(corsSource) }
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
             .securityMatcher(PathPatternParserServerWebExchangeMatcher("/**"))

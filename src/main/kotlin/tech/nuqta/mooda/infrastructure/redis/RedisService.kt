@@ -17,6 +17,7 @@ interface RedisService {
     fun incrementWithTtlIfFirst(key: String, ttl: Duration): Mono<Long>
     fun get(key: String): Mono<String>
     fun set(key: String, value: String, ttl: Duration): Mono<Boolean>
+    fun setIfAbsent(key: String, value: String, ttl: Duration): Mono<Boolean>
     fun scan(pattern: String): Flux<String>
 
     // Pub/Sub
@@ -50,6 +51,11 @@ class RedisServiceImpl(
     override fun set(key: String, value: String, ttl: Duration): Mono<Boolean> {
         val r = redis ?: return Mono.just(true)
         return r.opsForValue().set(key, value, ttl)
+    }
+
+    override fun setIfAbsent(key: String, value: String, ttl: Duration): Mono<Boolean> {
+        val r = redis ?: return Mono.just(true)
+        return r.opsForValue().setIfAbsent(key, value, ttl)
     }
 
     override fun scan(pattern: String): Flux<String> {

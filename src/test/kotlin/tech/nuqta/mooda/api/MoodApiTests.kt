@@ -20,7 +20,7 @@ import tech.nuqta.mooda.infrastructure.persistence.repository.MoodRepository
 import tech.nuqta.mooda.infrastructure.redis.RedisService
 import java.time.Duration
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -39,7 +39,7 @@ class MoodApiTests {
     @Autowired
     lateinit var redis: RedisService
 
-    private val today: LocalDate = LocalDate.now(ZoneOffset.UTC)
+    private val today: LocalDate = LocalDate.now(ZoneId.of("Asia/Tashkent"))
 
     private fun authToken(): String {
         val tokenMap = client.post()
@@ -191,6 +191,21 @@ class InMemoryRedis : RedisService {
         val expireAt = System.currentTimeMillis() + ttl.toMillis()
         store[key] = Entry(value, expireAt)
         return Mono.just(true)
+    }
+
+    override fun setIfAbsent(key: String, value: String, ttl: Duration): Mono<Boolean> {
+        val now = System.currentTimeMillis()
+        val created = store.compute(key) { _, old ->
+            if (old == null || old.expireAt < now) {
+                Entry(value, now + ttl.toMillis())
+            } else {
+                old
+            }
+        }
+        val ok = created != null && (created.value == value && created.expireAt >= now)
+        // If key existed and not expired, ok will still be true due to same value; ensure we return false in that case
+        val existedAndValid = store[key]?.let { it.expireAt >= now } == true && (store[key]?.value != value || true)
+        return Mono.just(!existedAndValid)
     }
 
     override fun scan(pattern: String): Flux<String> {

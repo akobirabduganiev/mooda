@@ -13,7 +13,9 @@ import tech.nuqta.mooda.domain.service.StatsService
 @RestController
 class StatsController(
     private val statsService: StatsService,
-    private val countryService: tech.nuqta.mooda.domain.service.CountryService
+    private val countryService: tech.nuqta.mooda.domain.service.CountryService,
+    @org.springframework.beans.factory.annotation.Value("\${app.timezone:Asia/Tashkent}")
+    private val appTimezone: String
 ) {
     // Legacy response for backward compatibility
 
@@ -59,7 +61,8 @@ class StatsController(
             return Mono.error(IllegalArgumentException("invalid_date"))
         }
         // Cache headers: past days can be cached longer
-        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+        val zone = runCatching { java.time.ZoneId.of(appTimezone) }.getOrElse { java.time.ZoneOffset.UTC }
+        val today = java.time.LocalDate.now(zone)
         if (parsed.isBefore(today)) {
             exchange.response.headers.add("Cache-Control", "public, max-age=300, stale-while-revalidate=1200")
         } else {
