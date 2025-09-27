@@ -114,4 +114,21 @@ curl -fsS https://<your-app-name>.fly.dev/actuator/health | jq
 - Swagger UI is available at `/swagger-ui.html` (or `/swagger-ui/index.html`).
 - Liquibase runs on startup using `DB_JDBC_URL`. Ensure that URL is correct or set `LIQUIBASE_ENABLED=false` if you need to skip migrations for troubleshooting.
 
+## Troubleshooting
+
+- Error during Launch UI: "Detected a Dockerfile app" followed by "launch manifest was created for a … app, but this is a … app".
+  - Cause: Fly Launch UI created a Buildpack manifest while the repo uses a Dockerfile, resulting in a mismatch.
+  - Fix: Use the committed fly.toml and Dockerfile directly:
+    1. `flyctl launch --copy-config --no-deploy`
+    2. `flyctl deploy --remote-only -a <your-app-name>`
+  - Alternatively, if you previously created the app with a different build strategy, run:
+    - `flyctl apps list` to find it, then `flyctl deploy -a <your-app-name>` from the repo root.
+  - Ensure your `fly.toml` has:
+    ```toml
+    [build]
+    dockerfile = "Dockerfile"
+    ```
+- Timeouts during deploy/build on slow networks: use `--remote-only` to build on Fly’s builders.
+- If health checks fail, check `/actuator/health` logs and verify DB/Redis secrets.
+
 That’s it — you should be live on Fly.io!

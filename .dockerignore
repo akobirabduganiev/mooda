@@ -1,12 +1,30 @@
+# Docker context exclusions
+# Keep the gradle wrapper files (gradlew, gradlew.bat, gradle/**) because the Dockerfile uses them.
+
+# VCS and metadata
 .git
 .gitignore
-.gradle
-build
-out
-**/.DS_Store
-**/*.iml
-**/.idea
-node_modules
-Dockerfile
-.dockerignore
-**/*.log
+.DS_Store
+
+# IDE files
+.idea/
+*.iml
+
+# Build outputs and caches
+build/
+.gradle/
+out/
+
+# Logs and local env files
+logs/
+*.log
+.env
+
+# Tests are not needed in the runtime image context
+src/test/
+
+# Compose & local-only files
+docker-compose.yml
+docker-compose.override.yml
+Dockerrun.aws.json.template
+aws/
