@@ -1,0 +1,6 @@
+services:
+  app:
+    environment:
+      BACKEND_BASE_URL: http://localhost:8010
+      # Example of overriding CORS for local frontend frameworks
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173

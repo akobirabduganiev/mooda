@@ -13,13 +13,18 @@ import java.time.Duration
 @Component
 class LiveStatsRedisSync(
     private val redis: RedisService,
-    private val broadcaster: LiveStatsBroadcaster
+    private val broadcaster: LiveStatsBroadcaster,
+    @org.springframework.beans.factory.annotation.Value("\${app.live-stats.redis-sync-enabled:true}") private val enabled: Boolean
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private var subscription: Disposable? = null
 
     @PostConstruct
     fun start() {
+        if (!enabled) {
+            log.info("LiveStatsRedisSync is disabled by configuration (app.live-stats.redis-sync-enabled=false)")
+            return
+        }
         // Subscribe to all stats channels with retry/backoff
         subscription = redis.subscribePattern("mooda:stats:*")
             .retryWhen(

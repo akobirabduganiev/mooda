@@ -2,7 +2,11 @@ spring:
   liquibase:
     enabled: false
   autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration,org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration,org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration
+      - org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
   data:
     r2dbc:
       repositories:
@@ -13,3 +17,5 @@ app:
     debug-expose-token: true
   mail:
     enabled: false
+  live-stats:
+    redis-sync-enabled: false

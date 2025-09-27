@@ -37,7 +37,7 @@ Requirements:
 docker run --name mooda-postgres \
   -e POSTGRES_PASSWORD=mysecurepassword \
   -e POSTGRES_DB=mooda_db \
-  -p 5432:5432 -d postgres:16
+  -p 5432:5432 -d postgres:17
 
 # Redis (simple dev password):
 docker run --name mooda-redis \
@@ -98,6 +98,9 @@ Message bundles live under `src/main/resources/i18n`:
 Issues and Pull Requests are welcome. We appreciate feedback and contributions.
 
 ---
+
+## Deploying to Fly.io
+See DEPLOYING-FLYIO.md for a step-by-step guide to deploy this project on Fly.io using the included Dockerfile and fly.toml.
 
 ### Project links
 - OpenAPI/Swagger UI: `/swagger-ui.html`

@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mooda_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-root}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no"]
+
+  app:
+    build: .
+    image: akobirabduganiev/mooda:latest
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      PORT: ${PORT:-8010}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-mooda_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-root}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME:-default}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
+      SWAGGER_UI_ENABLED: ${SWAGGER_UI_ENABLED:-false}
+      LIQUIBASE_ENABLED: ${LIQUIBASE_ENABLED:-true}
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8010:8010"
+
+volumes:
+  pgdata:

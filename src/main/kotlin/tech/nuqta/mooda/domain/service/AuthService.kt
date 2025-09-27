@@ -24,7 +24,8 @@ class AuthService(
     private val countryService: CountryService,
     @param:Autowired(required = false)
     private val r2dbc: org.springframework.data.r2dbc.core.R2dbcEntityTemplate?,
-    @param:Value("\${app.auth.verify-url-base:http://localhost:8010/api/v1/auth/verify}") private val verifyUrlBase: String,
+    @param:Value("\${app.auth.verify-url-base:}") private val verifyUrlBaseProp: String,
+    @param:Value("\${BACKEND_BASE_URL:}") private val backendBaseUrl: String,
     @param:Value("\${app.auth.debug-expose-token:false}") private val debugExposeToken: Boolean
 ) {
     data class RequestSignupResponse(val sent: Boolean, val verificationToken: String? = null)
@@ -64,6 +65,12 @@ class AuthService(
                 ).onErrorResume { _: Throwable -> Mono.empty() }
                     .then(Mono.just(RequestSignupResponse(sent = true, verificationToken = if (debugExposeToken) token else null)))
             })
+    }
+
+    private val verifyUrlBase: String = when {
+        verifyUrlBaseProp.isNotBlank() -> verifyUrlBaseProp
+        backendBaseUrl.isNotBlank() -> backendBaseUrl.trimEnd('/') + "/api/v1/auth/verify"
+        else -> "http://localhost:8010/api/v1/auth/verify"
     }
 
     private fun buildVerifyLink(token: String): String {
