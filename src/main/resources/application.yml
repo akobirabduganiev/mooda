@@ -4,6 +4,7 @@ spring:
   main:
     web-application-type: reactive
   r2dbc:
+    # Prefer full URL via DB_R2DBC_URL; otherwise fallback to host/port/name/user/pass below
     url: ${DB_R2DBC_URL:r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mooda_db}}
     username: ${DB_USER:${DB_USERNAME:postgres}}
     password: ${DB_PASS:${DB_PASSWORD:mysecurepassword}}
@@ -38,6 +39,7 @@ spring:
   liquibase:
     enabled: ${LIQUIBASE_ENABLED:true}
     change-log: classpath:db/changelog/db.changelog-master.yaml
+    # Prefer full JDBC URL via DB_JDBC_URL; otherwise fallback to host/port/name/user/pass below
     url: ${DB_JDBC_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:mooda_db}}
     user: ${DB_USER:${DB_USERNAME:postgres}}
     password: ${DB_PASS:${DB_PASSWORD:mysecurepassword}}

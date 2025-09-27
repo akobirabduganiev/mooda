@@ -16,6 +16,8 @@ app = "mooda"
   # Optional: OpenAPI/Swagger in prod
   OPENAPI_ENABLED = "true"
   SWAGGER_UI_ENABLED = "true"
+  # Disable Liquibase by default to let the app boot even before DB secrets are set (enable later)
+  LIQUIBASE_ENABLED = "false"
   # Optional: For email verification links — set to your public backend URL or set VERIFY_URL_BASE directly
   # BACKEND_BASE_URL = "https://mooda.fly.dev"
 
@@ -45,7 +47,7 @@ app = "mooda"
   type = "http"
   interval = "10s"
   timeout = "2s"
-  grace_period = "60s"
+  grace_period = "120s"
   method = "get"
   path = "/actuator/health"
 

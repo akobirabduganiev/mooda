@@ -105,3 +105,26 @@ See DEPLOYING-FLYIO.md for a step-by-step guide to deploy this project on Fly.io
 ### Project links
 - OpenAPI/Swagger UI: `/swagger-ui.html`
 - Repository: https://github.com/nuqta-tech/mooda
+
+
+## Database configuration — where is it defined?
+
+Short answer: not in the Dockerfile. Database settings are provided through Spring Boot configuration (application.yml) and environment variables.
+
+- Spring config (src/main/resources/application.yml):
+  - Runtime (R2DBC): spring.r2dbc.url, spring.r2dbc.username, spring.r2dbc.password. Prefer setting DB_R2DBC_URL; otherwise DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASS are used.
+  - Migrations (Liquibase): spring.liquibase.url, spring.liquibase.user, spring.liquibase.password. Prefer setting DB_JDBC_URL; otherwise DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASS are used.
+- Dockerfile: contains no DB credentials or connection settings by design. It only builds and runs the app jar.
+- Docker Compose (docker-compose.yml): passes DB_… env vars to the container. We also include DB_JDBC_URL and DB_R2DBC_URL for parity with production; you can override them in a local .env file.
+- Fly.io: set DB_JDBC_URL and DB_R2DBC_URL as app secrets (see DEPLOYING-FLYIO.md). On Fly, Liquibase is disabled by default in fly.toml until secrets are provided.
+
+Examples:
+
+- Local (default fallback):
+  - R2DBC: r2dbc:postgresql://localhost:5432/mooda_db
+  - JDBC:  jdbc:postgresql://localhost:5432/mooda_db
+- Docker Compose (defaults baked in):
+  - R2DBC: r2dbc:postgresql://postgres:root@postgres:5432/mooda_db
+  - JDBC:  jdbc:postgresql://postgres:5432/mooda_db?user=postgres&password=root
+
+Tip: Prefer using the URL variables (DB_R2DBC_URL and DB_JDBC_URL) in all environments — this ensures consistent behavior across local, Docker, and Fly.io.

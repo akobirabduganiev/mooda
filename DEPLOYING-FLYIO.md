@@ -112,7 +112,11 @@ curl -fsS https://<your-app-name>.fly.dev/actuator/health | jq
 - The app listens on `PORT` (default 8080 on Fly). Our Dockerfile EXPOSE is 8080.
 - Metrics are available at `/actuator/prometheus`.
 - Swagger UI is available at `/swagger-ui.html` (or `/swagger-ui/index.html`).
-- Liquibase runs on startup using `DB_JDBC_URL`. Ensure that URL is correct or set `LIQUIBASE_ENABLED=false` if you need to skip migrations for troubleshooting.
+- On Fly, Liquibase is disabled by default in `fly.toml` (LIQUIBASE_ENABLED=false) so the app can pass health checks even before the database is attached. After setting `DB_JDBC_URL` and `DB_R2DBC_URL` secrets, enable migrations by running:
+  ```bash
+  flyctl secrets set LIQUIBASE_ENABLED=true -a <your-app-name>
+  flyctl deploy --remote-only -a <your-app-name>
+  ```
 
 ## Troubleshooting
 
